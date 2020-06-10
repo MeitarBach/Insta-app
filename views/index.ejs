@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta name="viewport" content="width=device-width, intial-scale=1.0">
+        <title>Hw1-Part2-App</title>
+    </head>
+
+    <body>
+        <h2>Upload a Picture</h2>
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+            <label for="img">Select image:</label>
+            <input type="file" id="file" name="file" accept="image/*"><br>
+            <input type="submit" value="Upload">
+        </form>
+
+        <table>
+            <% for (var i =0 ; i < table.length ; i=i+4){ %>
+                <tr>
+                    <td>
+                        <img height='300' width='400' src=<%= table[i] %>>
+                    </td>
+                    <td>
+                        <img height='300' width='400' src=<%= table[i+1] %>>
+                    </td>
+                    <td>
+                        <img height='300' width='400' src=<%= table[i+2] %>>
+                    </td>
+                    <td>
+                        <img height='300' width='400' src=<%= table[i+3] %>>
+                    </td>
+                </tr>
+            <% } %>
+        </table>
+
+    </body>
+
+
+</html>
