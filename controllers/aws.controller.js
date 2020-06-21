@@ -3,7 +3,7 @@ const env = require('../config/s3.env.js');
  
 const s3Client = s3.s3Client;
 
-exports.doUpload = (req, res) => {
+exports.upload = (req, res) => {
   const params = s3.uploadParams;
   
   params.Key = req.file.originalname;
@@ -13,6 +13,8 @@ exports.doUpload = (req, res) => {
     if (err) {
       res.status(500).json({error:"Error -> " + err});
     }
+
+    balanceClasses();
 
     res.redirect('/');
   });
@@ -24,29 +26,42 @@ exports.download = (async (req, res) => {
         Bucket: params.Bucket
     }).promise();
 
-    // console.log(images)
-
     images = images.Contents;
-    images.sort(function(a, b) {
+
+    standardImages = []
+    iaImages = []
+    for (let i = 0 ; i < images.length ; i++){
+      if (images[i].StorageClass === 'STANDARD'){
+        standardImages.push(images[i]);
+      }
+      else{
+        iaImages.push(images[i]);
+      }
+    }
+
+    standardImages.sort(function(a, b) {
         var keyA = new Date(a.LastModified),
           keyB = new Date(b.LastModified);
         // Compare the 2 dates
         if (keyA < keyB) return 1;
         if (keyA > keyB) return -1;
         return 0;
-      });
+    });
 
-    const keys = getKeys(images);
+    iaImages.sort(function(a, b) {
+      var keyA = new Date(a.LastModified),
+        keyB = new Date(b.LastModified);
+      // Compare the 2 dates
+      if (keyA < keyB) return 1;
+      if (keyA > keyB) return -1;
+      return 0;
+    });
+
+    const keys = getKeys(standardImages).concat(getKeys(iaImages));
 
     // console.log(keys);
 
     const urls = getUrls(keys);
-
-    console.log("The urls of the images:\n", urls);
-
-    // const table = createTable(tags);
-
-    // console.log(table);
 
     res.render('index', {table: urls});
 })
@@ -76,35 +91,62 @@ function getUrls(keys){
     return urls;
 }
 
-// function extractRowData(rowNum, imgTags){
-//     const i = rowNum * 4;
-//     const rowData = imgTags.slice(i, i + 4);
+async function balanceClasses(){
+  const params = s3.downloadParams;
+  let images = await s3Client.listObjectsV2({
+      Bucket: params.Bucket
+  }).promise();
 
-//     return rowData;
-// }
+  images = images.Contents;
 
-// function createTableRow(rowData){
-//     let tableRow = "<tr>";
-//     for (let i = 0 ; i < rowData.length ; i++){
-//         tableRow += rowData[i];
-//     }
-//     tableRow += "</tr>";
+  let wantedIaAmount = images.length * 0.8;
+  let currentIaAmount = countIaClassImages(images);
+  let moveClassAmount = Math.floor(wantedIaAmount - currentIaAmount);
 
-//     return tableRow;
-// }
+  console.log(`The number of images to move: ${moveClassAmount}`);
+  moveImagesToIaClass(images, moveClassAmount);
+}
 
-// function createTable(imgTags){
-//     const numOfRows = Math.ceil(imgTags.length / 4);
-//     let table = "<table>";
-//     for (let i = 0 ; i < numOfRows ; i++){
-//         let rowData = extractRowData(i, imgTags);
-//         // console.log(rowData);
-//         // console.log(createTableRow(rowData));
-//         table += createTableRow(rowData);
-//     }
+function countIaClassImages(images){
+  let iaClassImages = 0;
+  for (let i = 0 ; i < images.length ; i++){
+    if (images[i].StorageClass === 'STANDARD_IA'){
+      iaClassImages++;
+    }
+  }
 
-//     table += "</table>";
-//     return table;
-// }
+  return iaClassImages;
+}
 
+function moveImagesToIaClass(images, numOfImagesToMove){
+  standardImages = []
+  for (let i = 0 ; i < images.length ; i++){
+    if (images[i].StorageClass === 'STANDARD'){
+      standardImages.push(images[i])
+    }
+  }
 
+  standardImages.sort(function(a, b) {
+    var keyA = new Date(a.LastModified),
+      keyB = new Date(b.LastModified);
+    // Compare the 2 dates
+    if (keyA < keyB) return -1;
+    if (keyA > keyB) return 1;
+    return 0;
+  });
+
+  for (let i = 0 ; i < numOfImagesToMove ; i++){
+    let params = s3.changeClassParams;
+    params.CopySource = ("/" + params.Bucket + "/" + standardImages[i].Key);
+    params.Key = standardImages[i].Key;
+    params.StorageClass = 'STANDARD_IA';
+
+    s3Client.copyObject(params, (err, data)=>{
+      if (err)
+        console.log(err, err.stack);
+      else
+        console.log(`succesfully moved image ${params.Key} to STANDARD_IA class`);
+    });
+  }
+
+}

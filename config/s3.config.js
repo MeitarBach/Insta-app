@@ -16,10 +16,15 @@ const uploadParams = {
 const downloadParams = {
   Bucket: env.Bucket
 }
+
+const changeClassParams = {
+  Bucket: env.Bucket
+}
  
 const s3 = {};
 s3.s3Client = s3Client;
 s3.uploadParams = uploadParams;
 s3.downloadParams = downloadParams;
- 
+s3.changeClassParams = changeClassParams;
+
 module.exports = s3;
